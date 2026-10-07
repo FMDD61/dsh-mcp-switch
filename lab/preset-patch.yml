@@ -1,0 +1,71 @@
+# 实验覆盖层：把两个 marker 探针分别挂在 profile 层与预设层，用来**演示**作用域语义。
+#
+# 用法（在一个隔离的 profile 上）：
+#   dsh --profile <your-lab-profile> --patch lab/preset-patch.yml ...
+#
+# ⚠ 这个文件是**实验装置**，不是安装指引。它故意把探针挂在两个层级上，
+#   目的就是证明「profile 层的行会被极简预设继承」。
+#   **生产安装方式见 README**：插件始终全局挂载一份，由插件自己按 config.excludePresets
+#   在该 agent 的 scope 里摘掉工具 —— 不要把插件行搬进预设的 plugins 列表
+#   （预设里的行是每个预设各起一份实例，本插件会 spawn 常驻子进程）。
+#
+# 三条与工具表有关的事实（都来自实测）：
+#   1. profile（全局）层的工具会被**每一个**预设继承，包括极简。
+#   2. 中间层工具必须【同步】注册 —— 跨越 await 再注册，模型看不到。
+#   3. PTC 下工具表只有 run_code，中间层工具经 await tools.<name>(...) 到达。
+
+- insert:
+    # ---- 一个挂在 profile 层的探针（对照组：它【应该】在极简模式下也可见）----
+    - id: probe-global
+      name: './probes/probe.js'
+      config:
+        label: global
+
+    # ---- 预设注册表：默认预设设为 minimal，方便一次跑出对照组 -------
+    - id: agent-preset-registry
+      name: '@deepseek-ai/dsh-agent-preset-registry'
+      config:
+        default: minimal
+
+    # ---- 极简预设：只挂 bash + 一个【预设内】探针 -------------------
+    - id: preset-minimal
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: minimal
+        order: 3
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: You are a helpful software engineer assistant.
+              complete: true
+              includeRuntimeContext: false
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+          - id: probe-inside-minimal
+            name: './probes/probe.js'
+            config:
+              label: minimal
+
+    # ---- 标准预设：挂真正的插件包 + 一个【预设内】探针 --------------
+    - id: preset-standard
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: standard
+        order: 1
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: You are a coding agent.
+          - id: tool-bash
+            name: '@deepseek-ai/dsh-tool-bash'
+          - id: dsh-mcp-switch
+            name: 'dsh-mcp-switch'
+            config:
+              __mountedAt: preset-standard
+              servers: []
+          - id: probe-inside-standard
+            name: './probes/probe.js'
+            config:
+              label: standard

@@ -1,0 +1,16 @@
+# 依赖与构建产物
+# 注意写 node_modules 而**不带**尾斜杠：仓库里它是指向 dsh 自身依赖的符号链接，
+# 而 `node_modules/`（尾斜杠 = 只匹配目录）匹配不到符号链接，会被原样提交进去。
+node_modules
+*.tgz
+
+# 内部工作日志 —— 公开仓库只放「设计」与「实测」两份：
+#   docs/design.md        设计与取舍（随 npm 包发布，已脱敏）
+#   docs/measurements.md  实测原始数字（随 npm 包发布，已脱敏）
+# 这两份含开发过程、测试台记录与本机路径，属内部资料。
+docs/implementation.md
+docs/open-questions.md
+
+# 编辑器 / 系统
+.DS_Store
+*.log

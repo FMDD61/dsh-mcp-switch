@@ -1,0 +1,47 @@
+# dsh-mcp-switch — bundle patch
+#
+# 模式：声明一行但【默认停用】（照抄 @deepseek-ai/dsh-tool-skill 的做法）。
+# 停用是为了「装上 ≠ 启用」：插件随包安装，但不挂载，直到用户在 profile 里显式打开。
+#
+# ── 启用方法 ────────────────────────────────────────────────────────────────
+#
+# 在 profile 的 cordis.patch.yml 里**全局**打开它（按 id 覆盖会整段替换条目，
+# 所以 name / disabled 都要重述）：
+#
+#   - id: dsh-mcp-switch
+#     name: 'dsh-mcp-switch'
+#     disabled: false
+#     config:
+#       servers: [...]
+#
+# ── 为什么**不要**把这一行搬进某个预设 ──────────────────────────────────────
+#
+# 2026-10-06 实测（lab/preset-scope-smoke.mjs 顶注有完整记录）：
+# 预设里的行是**每个预设各起一份实例**（dsh 源码原话：
+# 「One agent's instance of a service its preset mounted」）。把本插件同时挂进
+# preset-standard 与 preset-ptc 之后，一个 MCP 服务器就从 1 个子进程变成 2 个；
+# 两份实例还会各自去注册同一个 /mcp-switch web 路由、各自持有一份会话开关内存缓存。
+#
+# 本插件的架构前提恰恰是「连接随 dsh 本体起一份，会话只决定接入哪些服务器」——
+# 多份实例会把这个前提打掉。所以：
+#
+#   **本插件始终全局挂载一份**；极简模式那类不该看到它的预设，
+#   由插件自己在**该 agent 的 scope** 里用 ctx.tools.restrict 摘掉三个工具的可见性
+#   （见 lib/index.js 的 DEFAULT_EXCLUDED_PRESETS）。工具字节因此也不进那些预设的请求。
+#
+# 要改排除哪些预设，用配置而不是补丁：
+#
+#   config:
+#     excludePresets: ['minimal']   # 默认值；空数组表示一个都不排除
+#
+# ⚠ 读的是 agentPreset **会话投影**，不是 header.agentPreset —— 会话创建之后再
+#   改选预设时，header 上的值会停在创建时那个（实测：一个切到极简的会话 header 里
+#   还是 standard，于是什么都没摘）。
+#
+# 历史：本文件早先的注释教人「为每个目标预设加一行」。那条指引对**不 spawn 常驻
+# 子进程**的行（如 dsh-wsl-bridge）成立，对本插件不成立，已按实测改写。
+
+- insert:
+    - id: dsh-mcp-switch
+      name: 'dsh-mcp-switch'
+      disabled: true
