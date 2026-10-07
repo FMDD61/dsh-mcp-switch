@@ -100,7 +100,13 @@ The UI (settings section and the session-header dropdown) is **bilingual: Englis
 
 ## Compatibility
 
-Built and verified against **dsh 0.2.0-rc.2** (Node 22). The peer ranges also accept `0.2.1-alpha`.
+Built and verified against **dsh 0.2.0-rc.2** (Node 22). The peer ranges cover the 0.2.x host line —
+`0.2.1-alpha` included — and **refuse** the `0.3.0` prerelease line.
+
+One detail worth knowing if you write your own ranges: dsh evaluates peers with
+`semver.satisfies(host, range, { includePrerelease: true })`, and under that flag `0.3.0-rc.1` is
+*less than* `0.3.0` — so an upper bound written `<0.3.0` quietly admits a dsh that was never
+tested. The bound here is `<0.3.0-0`, the one that actually excludes it.
 
 ## Documentation
 

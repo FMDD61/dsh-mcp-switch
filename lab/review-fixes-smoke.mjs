@@ -80,8 +80,19 @@ console.log(String.fromCharCode(10) + '3. B2 peer 范围');
   for (const version of ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.1-alpha', '0.2.1']) {
     check('范围认 ' + version, ranges.every((r) => semver.satisfies(version, r)), true);
   }
-  for (const version of ['0.3.0-rc.1', '0.3.0']) {
+  for (const version of ['0.3.0-0', '0.3.0-rc.1', '0.3.0']) {
     check('范围排除 ' + version, ranges.every((r) => !semver.satisfies(version, r)), true);
+  }
+
+  // **宿主门禁用的是 includePrerelease: true**，在这个语义下 `0.3.0-rc.1` 小于 `0.3.0`，
+  // 所以以上界 `<0.3.0` 结尾的范围会放行整条 0.3.0 预发布线。必须用 `<0.3.0-0`。
+  // 这条断言就是钉住那个上界，别让它悄悄回退。
+  const dshSemver = (await import('/usr/lib/node_modules/@deepseek-ai/dsh/node_modules/semver/index.js')).default;
+  for (const version of ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.1-alpha', '0.2.9']) {
+    check('门禁语义（includePrerelease）认 ' + version, ranges.every((r) => dshSemver.satisfies(version, r, { includePrerelease: true })), true);
+  }
+  for (const version of ['0.3.0-0', '0.3.0-rc.1']) {
+    check('门禁语义排除 ' + version, ranges.every((r) => !dshSemver.satisfies(version, r, { includePrerelease: true })), true);
   }
 }
 
