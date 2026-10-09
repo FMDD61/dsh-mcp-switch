@@ -66,19 +66,22 @@ console.log('\n2. DefaultsStore 单元');
   const home = mkdtempSync(join(tmpdir(), 'mcp-switch-defaults-unit-'));
   const store = new storeMod.DefaultsStore({ home });
 
-  check('文件不存在 -> 空且可确认', await store.load(), { servers: [], readable: true });
+  // `exists` 是 2026-10-08 为 config.defaults 加的：区分"没有那份文件"（可确认的没有声明）
+  // 与"文件在但读不懂"。与 SessionStore 的同一套约定。
+  check('文件不存在 -> 空、可确认、且 exists:false', await store.load(), { servers: [], readable: true, exists: false });
   await store.save(['b', 'a', 'a']);
   check('落盘后排序去重', (await store.load()).servers, ['a', 'b']);
   check('文件权限 0600', statSync(store.path()).mode & 0o777, 0o600);
 
   writeFileSync(store.path(), 'not json at all');
-  check('损坏 -> readable:false 且退化为空', await store.load(), { servers: [], readable: false });
+  check('损坏 -> readable:false、退化为空、但 exists:true', await store.load(), { servers: [], readable: false, exists: true });
 
   writeFileSync(store.path(), JSON.stringify({ version: 999, servers: ['x'] }));
-  check('版本不认识 -> readable:false', await store.load(), { servers: [], readable: false });
+  check('版本不认识 -> readable:false 且 exists:true', await store.load(), { servers: [], readable: false, exists: true });
 
   writeFileSync(store.path(), JSON.stringify({ version: storeMod.DEFAULTS_VERSION, servers: ['ok', 42, '', 'ok'] }));
   check('非字符串项被滤掉', (await store.load()).servers, ['ok']);
+  check('正常文件 exists:true', (await store.load()).exists, true);
   rmSync(home, { recursive: true, force: true });
 }
 

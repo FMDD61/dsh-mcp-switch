@@ -77,6 +77,27 @@ dsh plugin --profile <profile> add ./dsh-mcp-switch-<version>.tgz
 
 默认非空时，设置页会把它的成本按**字节**显示出来 —— 打开它的代价，就摆在打开它的地方。
 
+## Headless 与其他无界面形态
+
+`dsh headless` 没有 Host、没有 HTTP 服务器、也没有设置页（已按 0.2.0-rc.2 验证；
+`acp` 与 `sdk` 是另外两类无界面形态，本版尚未验证）。三个工具在那里照常工作 ——
+它们做不到的是**改变**任何东西：能写「新会话默认」的入口只有 web 设置页。请在 profile patch 里声明：
+
+```yaml
+- id: dsh-mcp-switch
+  config:
+    defaults: [context7]      # 新会话默认接入哪些
+    servers: [ ... ]          # 存在哪些服务器
+```
+
+- `config.defaults` **压过**设置页写的那份默认文件。两者同时存在时插件在挂载时告警一次，
+  并且 `mcp_servers` 会报 `defaultsSource`（`config` / `store` / `none`）与
+  `defaultsOverridden` —— 模型能直接看出默认是谁定的。
+- **只跑一次**也不需要新东西：`dsh --profile headless --patch ./once.yml "任务"`。
+- `config.readyWaitMs`（默认 30 秒，`0` 关闭）让 `mcp_call` / `mcp_detail` 在服务器还处于
+  `connecting` 时**等一等**，而不是回一句「不知道有哪些工具」—— 一次性 run 没有第二次机会。
+  等待可被工具的 signal 中止、服务器一落定就返回、对**未启用**的服务器不等待，
+  对 `mcp_servers` 也永不等待。
 ## 预设可见性
 
 dsh 按**agent 预设**组合一个会话的工具。注册在 profile（全局）层的工具会被**每一个**预设继承，包括 `minimal` —— 所以全局挂载的插件会把工具漏进极简会话。

@@ -339,6 +339,63 @@ declarationBytes = byteLength(JSON.stringify(tools.map(t => ({
 校准：同一台 context7（2 个工具），本函数 4,588 B，文档记录 4,581 B，差 0.15%，
 来自 `@upstash/context7-mcp` 版本漂移。复算脚本 `lab/calibrate-bytes.mjs`。
 
+### 2.13 非 web 形态的开关控制面（2026-10-08 裁决，2026-10-09 实现）
+
+web / 桌面之外，dsh 0.2.0-rc.2 还出厂三类形态：`headless`（一次性 CLI）、`acp`（编辑器接入）、
+`sdk` / `sdk-minimal`（嵌进别的程序）。**没有 TUI** —— `dsh tui` 只是 launcher help 里的
+泛化示例，npm 上也没有对应包。
+
+**已按 0.2.0-rc.2 验证的是 headless**：它的 bundle 自述就是"no Host, HTTP, or browser layer"，
+且实测三个工具照常注册（见 measurements §34）。`acp` / `sdk` 同样没有 web 服务器与设置页，
+但**本版未验证**，留到下一版（用户裁决：先只做 headless，作为一个版本更新）。
+
+于是缺口很具体：三个工具照常注册、连接照常建立，但「哪些服务器接入本会话」的唯一可写入口是
+web 设置页 —— headless 里模型只能得到 `MCP server "x" is not enabled in this session`
+（2026-10-08 实测，见 measurements §34）。
+
+#### 采用的方案：`config.defaults`
+
+```yaml
+- id: dsh-mcp-switch
+  config:
+    defaults: [context7]      # 新会话默认接入哪些（部署声明）
+    servers: [ ... ]          # 存在哪些服务器
+```
+
+- **只作用于「默认」那一层**，解析链其余部分不变：
+  `自己的状态文件 → 继承 → config.defaults（写了就用它）→ defaults.json → ∅`。
+  会话自己动过开关，仍然以那份文件为准。
+- **写了它就压过 `defaults.json`**（设置页写的那份）。这是刻意的：profile 里的是**部署声明**，
+  `defaults.json` 是**用户偏好**。代价是两者同时存在时设置页看起来"失灵"，所以插件在挂载时
+  **告警一次**，并让 `mcp_servers` 报 `defaultsSource`（`config` / `store` / `none`）与
+  `defaultsOverridden` —— 模型和排查的人都能直接看出默认是谁定的。
+- **per-run 不需要新接口**：`dsh --patch <file>` 是 launcher 自带能力，写一份两行的 overlay 即可
+  只影响一次运行。
+- 选它的另一个理由是**维护面**：没有引入任何新的宿主 seam，只用了 cordis 配置这层地基。
+
+#### 被否决的备选（记录在此以免重走）
+
+| 备选 | 否决理由 |
+|---|---|
+| 环境变量 `DSH_MCP_SWITCH=…` | dsh 专属状态泄漏到通用环境变量上；受限权限的 agent 不便；各平台设置方式不同；**dsh 卸载后残留**；且不可发现（只能靠文档） |
+| 独立 CLI 改 `defaults.json` | 在 dsh 之外运行意味着 `dsh-home-paths` / `dsh-atomic-write` 这两个 **peer** 要自带，签名漂移会让 CLI 与插件写出互不兼容的状态；改的是 home 级全局状态，并行 CI 互踩 |
+| `cmdlineArgs` 旗标（`--mcp-servers=…`） | 命令行归 **app 插件**所有（上游原话 "an app owns its flag family"）。`parseCmdline` 把 commander 的报错转成 `exit(code)` ——**插件解析出错会带走整个宿主进程**；共存还要 `allowUnknownOption`，并与 app 自己的 `--help` 抢答 |
+
+#### 首呼竞态的兜底：`config.readyWaitMs`
+
+headless 是一次性的：模型第一次调用往往早于 MCP 子进程就绪（npx 冷启实测约 20 s），于是
+`mcp_detail` 拿到空目录回 `NO_TOOLS_KNOWN`、`mcp_call` 回"稍后再试" —— 而它没有第二次机会。
+
+- `mcp_call` / `mcp_detail` 遇到目标服务器处于 `connecting` 时**先等**，上限 `readyWaitMs`
+  （默认 30 000 ms；`0` = 关闭等待，回到旧行为）。
+- 等待**有界、可中止、可短命**：`exec.signal` 中止立即返回；服务器落定（ready **或** failed）
+  立即返回；**未启用**的服务器不等（那是另一个轴上的答案）；`mcp_servers` 永不等待 ——
+  它是盘点工具，必须即时。
+- 超时**不假装"没有工具"**：如实报 `phase: connecting` + `waitedMs` + 一句明说还在连的提示。
+
+宿主侧**不**给这三个工具声明 `timeoutMs`：`dsh-tool-call-timeout-policy` 只对声明了上限的工具
+计时，而本插件两端都已经有界（等待 ≤ `readyWaitMs`、MCP 请求 ≤ 该服务器的 `toolCallTimeoutMs`），
+再声明一个只会造出第二个互相竞争的期限。
 ## 3. 前缀稳定性（第一前提）
 
 ### 3.1 三层载荷：只有对话消息会变

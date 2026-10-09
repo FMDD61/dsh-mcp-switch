@@ -77,6 +77,28 @@ These are deliberately kept apart. Switching a session **freezes** its choice in
 
 When the defaults are non-empty, the settings section shows their cost in bytes — the tool-table price of turning something on is visible where you turn it on.
 
+## Headless and other UI-less surfaces
+
+`dsh headless` has no Host, no HTTP server and no settings page (verified against 0.2.0-rc.2;
+`acp` and `sdk` are the other UI-less surfaces, not yet verified here). The three tools still
+work there — what such a surface cannot do is *change* anything, because the only writer of the
+new-session default is the web settings page. Declare it in the profile patch instead:
+
+```yaml
+- id: dsh-mcp-switch
+  config:
+    defaults: [context7]      # what a new session attaches
+    servers: [ ... ]          # what exists
+```
+
+- `config.defaults` **wins over** the default file the settings page writes. When both exist the
+  plugin warns once at mount, and `mcp_servers` reports `defaultsSource` (`config` / `store` /
+  `none`) plus `defaultsOverridden`, so a model can tell where the default came from.
+- For a **single run** there is nothing new to learn: `dsh --profile headless --patch ./once.yml "task"`.
+- `config.readyWaitMs` (default 30 s, `0` disables) makes `mcp_call` and `mcp_detail` wait out a
+  server that is still `connecting` instead of answering "no tools known" — a one-shot run has no
+  second chance. The wait is cancelled by the tool's signal, returns the moment the server settles,
+  never applies to a server the session has not enabled, and never applies to `mcp_servers`.
 ## Preset visibility
 
 dsh composes a session's tools from its **agent preset**. Tools registered at the profile (global) level are inherited by *every* preset, including `minimal` — so a globally mounted plugin would leak its tools into minimal sessions.

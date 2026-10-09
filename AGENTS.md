@@ -31,6 +31,20 @@ cat <DSH_HOME>/profiles/<profile>/package.json
 
 Expect `dsh-mcp-switch` in both `dependencies` and `dsh.profile.bundles`. If it is in `dependencies` but **not** in `bundles`, the install half-failed — remove and add it again.
 
+Confirm the **version**, not just the presence. pnpm will not resolve a release that is less than
+**24 hours** old (its default `minimumReleaseAge` supply-chain gate), so a bare `add` silently
+installs an older release than the one on the registry:
+
+```sh
+npm view dsh-mcp-switch version
+node -p "require('<DSH_HOME>/profiles/<profile>/node_modules/dsh-mcp-switch/package.json').version"
+```
+
+Name the version to install the newest release (or to pin one):
+`dsh plugin --profile <profile> add dsh-mcp-switch@<version>`. A version added to the profile's
+`minimumReleaseAgeExclude` is exempt as well. `pnpm up` — with or without `--latest` — reports
+"Already up to date" and changes nothing.
+
 ## 2. Enable it
 
 Append this entry to `<DSH_HOME>/profiles/<profile>/cordis.patch.yml` (a top-level YAML array):
@@ -72,6 +86,28 @@ If dsh has a web UI, the plugin adds a section named **"MCP server defaults"** u
 - The three tools `mcp_servers`, `mcp_detail`, `mcp_call` are in the model's tool table.
 - In a **minimal** preset session they are **absent**. That is correct, not a bug — see below.
 
+## 5. Headless and CI (no web UI)
+
+`dsh headless "task"` has no web server and no settings page, so nothing can write the new-session
+default: every run ends at `MCP server "x" is not enabled in this session`. Declare it in the
+profile patch instead:
+
+```yaml
+- id: dsh-mcp-switch
+  name: 'dsh-mcp-switch'
+  disabled: false
+  config:
+    defaults: [context7]      # what a new session attaches; wins over defaults.json
+    servers: [ ... ]
+```
+
+For one run only, keep the profile clean and use the launcher's own overlay:
+`dsh --profile headless --patch ./once.yml "run the tests"`.
+
+Check `mcp_servers` for `defaultsSource` (`config` / `store` / `none`) before concluding that a
+server is "not configured"; when a default file is also present the plugin says so at mount.
+`config.readyWaitMs` (default 30000, `0` disables) waits out a server that is still `connecting`
+on the first call, which is the normal case in a one-shot run.
 ## Pitfalls — verified the hard way
 
 **Do NOT put the plugin row inside a `preset-*` entry's `plugins` list.**

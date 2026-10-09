@@ -458,3 +458,60 @@ JSON.stringify(tools.map(t => ({ name: t.name, description: t.description ?? '',
 
 **该模块刻意不提供 token 折算。** token 数跨模型、跨语种差异很大，
 把折算率写进界面等于用一个不成立的换算率冒充事实。界面只报字节。
+
+---
+
+## 34. headless 形态：控制面与首呼竞态（2026-10-08 / 09 实测）
+
+**缺口（0.7.3 + `headless` profile）**：三个工具正常注册、两台服务器 `ready`，但模型得到
+`Error: MCP server "context7" is not enabled in this session. Enabled: (none).`
+—— 唯一能写「新会话默认」的入口是 web 设置页，headless 没有。
+
+**首呼竞态**：同一次 run 里 `mcp_servers` 返回两台都还在 `connecting`，`mcp_detail` 回
+`NO_TOOLS_KNOWN`（空目录），`mcp_call` 回 `still connecting`。冷启到 ready 实测约 20 s
+（web 侧同配置：t+0 connecting → t+20s ready，30 + 2 个工具）。
+
+**0.8.0 之后（lab profile + 本地构建，真实一次性 run）**：`mcp_servers` 返回
+`"enabledInThisSession": ["context7"]`、`"defaultsSource": "config"`、`"defaults": ["context7"]`；
+同一次 run 里 context7 仍显示 `connecting`，而紧随其后的 `mcp_call` **已经打到真实服务器**
+并拿回它自己的参数校验错误
+（`Invalid arguments for tool resolve-library-id: query: Invalid input: expected string`）——
+即等待把调用带过了就绪窗口。若等待未生效，这里会是 `still connecting (phase=connecting)`。
+
+**0.8.0 正式版验收（2026-10-09，npm 安装 + 真实 `headless` profile）**：profile 侧只加了一行
+`config.defaults: [context7]`。一次 run 里三步全过：
+
+- `mcp_servers` → `"enabledInThisSession": ["context7"]`、`"defaultsSource": "config"`
+  （控制面来自 profile 声明，不是设置页）；
+- `mcp_detail`（该服务器当刻仍 `connecting`）→ `found: true` 且 **`waitedMs: 2427`**，
+  带回完整 `inputSchema`；0.7.3 时同一位置是 `NO_TOOLS_KNOWN`；
+- `mcp_call` → context7 的真实返回（候选库 `/reactjs/react.dev` 等）。
+
+会话状态目录无新增文件（一次性 run 不落状态）。
+
+---
+
+## 35. ACP 基线：客户端声明的 MCP 服务器走哪条路（2026-10-09 实测，dsh 0.2.0-rc.2）
+
+**做法**：`acp` profile（出厂模板）+ 手写 ACP v1 stdio 客户端（`@agentclientprotocol/sdk` 1.4.0 的
+`ClientSideConnection` + `ndJsonStream`）：`initialize` → `session/new`（带 `mcpServers` 声明）→
+`session/prompt`。
+
+**观测**：
+
+| 观测项 | 结果 |
+|---|---|
+| `session/new` 带一台 context7 声明 | **阻塞 6 315 ms** 直到服务器起来（stderr 出现 `Context7 … running on stdio`），之后才返回 sessionId |
+| 模型看到的工具 | **`mcp__context7__query-docs`、`mcp__context7__resolve-library-id`** —— 原生逐工具路径 |
+| 坏声明（npx 符号链接；或 node 配错参数） | `session/new` **照常返回 sessionId**、模型照常运行、**没有任何 `mcp__` 工具**，客户端拿不到错误 |
+
+**结论**：ACP 形态下客户端声明的 MCP 服务器由 `dsh-acp` 自己 mount 成原生 `dsh-mcp-client`
+（`agentCtx.plugin(McpClient, config)`，在 Agent 发布之前、`failOnStartupError: true`），
+产出**逐工具声明**且**不在本插件的开关管辖内**；ACP 契约不允许私有方法，插件侧没有接入口 ——
+即 design.md §2.13 记录的 ACP 缺口。
+
+**pnpm 发布龄门禁（同一批实验的附带实测）**：`minimumReleaseAge` 默认 1440 分钟。
+发布 23.7 小时的版本裸 `add` 会被**静默跳过**（退回 24.4 小时前那版），发布 69 小时的正常装上；
+空 cache 目录可复现，`--config.minimumReleaseAge=0` 即装到最新 ⇒ **与 packument 缓存无关**
+（2026-10-08 曾误判为缓存，用空 cache 复现后排除）。
+

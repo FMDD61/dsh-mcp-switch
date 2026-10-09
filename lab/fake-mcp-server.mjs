@@ -11,6 +11,9 @@
  * 加 `--list-changed` 参数时：声明 tools.listChanged 能力，并在首次 tools/list 之后
  * 发一条 notifications/tools/list_changed，然后多暴露一个工具 —— 用来验证
  * 服务器运行期改工具列表时我们的目录会刷新（design.md §7 的 L4）。
+ *
+ * 加 `--ready-delay-ms <n>` 参数时：把 initialize 的应答推迟 n 毫秒，
+ * 让客户端**停在 connecting** —— 用来验证首呼竞态兜底（有界等待）。
  */
 
 import { readFileSync } from 'node:fs';
@@ -18,6 +21,14 @@ import { readFileSync } from 'node:fs';
 const PNG = readFileSync(new URL('./fixtures/test.png', import.meta.url));
 
 const LIST_CHANGED = process.argv.includes('--list-changed');
+
+/** initialize 的应答延迟（毫秒）。0 = 立即应答。 */
+const READY_DELAY_MS = (() => {
+  const at = process.argv.indexOf('--ready-delay-ms');
+  if (at === -1) return 0;
+  const parsed = Number(process.argv[at + 1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+})();
 
 /** 首次 tools/list 之后才出现的那个工具。 */
 const LATE_TOOL = { name: 'late-arrival', description: 'Appears only after the server announces a tool list change.', inputSchema: { type: 'object', properties: {} } };
@@ -47,16 +58,19 @@ function handle(message) {
   if (id === undefined) return; // 通知，无需应答
 
   if (method === 'initialize') {
-    send({
-      jsonrpc: '2.0',
-      id,
-      result: {
-        // 回显客户端请求的版本 —— 标准的版本协商行为。
-        protocolVersion: params?.protocolVersion ?? '2025-06-18',
-        capabilities: { tools: LIST_CHANGED ? { listChanged: true } : {} },
-        serverInfo: { name: 'fake-mcp', version: '1.0.0' },
-      },
-    });
+    const answer = () =>
+      send({
+        jsonrpc: '2.0',
+        id,
+        result: {
+          // 回显客户端请求的版本 —— 标准的版本协商行为。
+          protocolVersion: params?.protocolVersion ?? '2025-06-18',
+          capabilities: { tools: LIST_CHANGED ? { listChanged: true } : {} },
+          serverInfo: { name: 'fake-mcp', version: '1.0.0' },
+        },
+      });
+    if (READY_DELAY_MS > 0) setTimeout(answer, READY_DELAY_MS);
+    else answer();
     return;
   }
   if (method === 'ping') {

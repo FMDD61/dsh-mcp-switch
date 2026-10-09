@@ -1,6 +1,6 @@
 {
   "name": "dsh-mcp-switch",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "description": "Per-session MCP server switching with a constant tool surface for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
@@ -15,6 +15,7 @@
     "README.md",
     "README_zh.md",
     "AGENTS.md",
+    "CHANGELOG.md",
     "docs/design.md",
     "docs/measurements.md"
   ],
