@@ -122,13 +122,22 @@ The UI (settings section and the session-header dropdown) is **bilingual: Englis
 
 ## Compatibility
 
-Built and verified against **dsh 0.2.0-rc.2** (Node 22). The peer ranges cover the 0.2.x host line —
-`0.2.1-alpha` included — and **refuse** the `0.3.0` prerelease line.
+Built and verified against **dsh 0.2.1-rc.2** (Node 22); `0.2.0-rc.2`, `0.2.1-alpha.5` and
+`0.2.1-rc.1` are also covered. The peer ranges cover the 0.2.x host line and **refuse** both the
+0.1.x line and the `0.3.0` prerelease line. `npm run verify:gate` recomputes everything below
+against every known host line.
 
-One detail worth knowing if you write your own ranges: dsh evaluates peers with
-`semver.satisfies(host, range, { includePrerelease: true })`, and under that flag `0.3.0-rc.1` is
-*less than* `0.3.0` — so an upper bound written `<0.3.0` quietly admits a dsh that was never
-tested. The bound here is `<0.3.0-0`, the one that actually excludes it.
+Two details worth knowing if you write your own ranges:
+
+- **The upper bound.** dsh evaluates peers with
+  `semver.satisfies(host, range, { includePrerelease: true })`, and under that flag `0.3.0-rc.1` is
+  *less than* `0.3.0` — so an upper bound written `<0.3.0` quietly admits a dsh that was never
+  tested. The bound here is `<0.3.0-0`, the one that actually excludes it.
+- **The lower bound.** A *plain* `semver.satisfies` — no flag, which is what npm and pnpm apply to
+  peer ranges — admits a prerelease version only when some comparator shares its
+  `major.minor.patch` tuple. Every dsh release so far is a prerelease, so the plain reading of
+  `>=0.2.0-rc.1 <0.3.0-0` stops at `0.2.0-rc.x` and never reaches `0.2.1-rc.x`. That is what the
+  second clause `|| >=0.2.1-0 <0.3.0-0` is for.
 
 ## Documentation
 

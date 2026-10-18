@@ -3,6 +3,34 @@
 Versions before 0.5.0 were development iterations without a published changelog; the measurements and
 the reasoning behind them are in [`docs/measurements.md`](docs/measurements.md).
 
+## 0.8.1 — 2026-10-18
+
+dsh **0.2.1-rc.1 / 0.2.1-rc.2** compatibility. **No source change and no peer-range change** — the
+ranges adopted in 0.7.1 already admit the 0.2.1 line under both matchers. This release records the
+verification and fills in the missing npm entry points.
+
+- **Verified on dsh 0.2.1-rc.2.** All 14 hermetic lab suites pass unchanged, plus the two that spawn
+  a real server. The seams this plugin calls are additive-only in 0.2.1: `writeFileAtomic` widened its
+  `content` parameter to `string | Uint8Array` and `withFileLock` gained an optional `signal`
+  (`dsh-atomic-write`), `resolveDshHome` is unchanged while `dsh-home-paths` added
+  `resolveAgentsHome`/`defaultAgentsHome`, and `scrubbedParentEnv` (`dsh-subprocess`) is unchanged.
+- **`dsh-client-ui-primitives` leaves the host's `node_modules` in 0.2.1 — this plugin is unaffected.**
+  The web frontend's static module table still serves it, so the client half's
+  `require('@deepseek-ai/dsh-client-ui-primitives')` keeps resolving; verified in a real browser
+  against 0.2.1-rc.2 (the settings section renders its switches and state dots). **Do not "fix" this
+  by inlining the primitives** — importing from the documented module is what keeps the UI consistent
+  with the rest of the settings page.
+- **New `npm test` / `npm run test:live`** (`scripts/run-lab.mjs`). The lab suites had no npm entry
+  point at all. `test` runs the 14 hermetic suites (each drives the in-repo fake MCP server or pure
+  units); `test:live` adds `connection-smoke` and `state-smoke`, which reach a real server through
+  `npx` and therefore stay opt-in.
+- **New `npm run verify:gate`** (`scripts/verify-peer-gate.mjs`). It recomputes the host gate for
+  every known line **and** the plain-semver view npm/pnpm use, and asserts both directions: the
+  supported lines pass both matchers, while `0.1.7-rc.2` and the whole `0.3.0` prerelease line fail
+  both. The plain-semver half is the reason the `|| >=0.2.1-0 <0.3.0-0` clause exists — until now
+  nothing checked it, so it could have been deleted without a single failure.
+- **New `npm run pack:check`** for a tarball review before publishing.
+
 ## 0.8.0 — 2026-10-09
 
 Headless — and any other surface with no web UI — can now declare which servers a new session

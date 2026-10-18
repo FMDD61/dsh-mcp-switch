@@ -6,7 +6,7 @@ Written to be followed mechanically. If a step fails, stop and report — do not
 ## 0. Preconditions
 
 ```sh
-dsh --version      # expect 0.2.0-rc.2 or newer 0.2.x (0.2.1-alpha is accepted)
+dsh --version      # expect 0.2.1-rc.2; 0.2.0-rc.2, 0.2.1-alpha.5 and 0.2.1-rc.1 are also covered
 node --version     # expect >= 20 (22 recommended)
 ```
 

@@ -1,6 +1,6 @@
 {
   "name": "dsh-mcp-switch",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Per-session MCP server switching with a constant tool surface for DeepSeek Harness.",
   "type": "module",
   "main": "lib/index.js",
@@ -53,5 +53,11 @@
       ],
       "platform": "web"
     }
+  },
+  "scripts": {
+    "test": "node scripts/run-lab.mjs",
+    "test:live": "node scripts/run-lab.mjs --live",
+    "verify:gate": "node scripts/verify-peer-gate.mjs",
+    "pack:check": "npm pack --dry-run"
   }
 }
